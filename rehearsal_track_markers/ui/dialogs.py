@@ -5,8 +5,10 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QInputDialog,
+    QLabel,
     QLineEdit,
     QMessageBox,
+    QSpinBox,
     QVBoxLayout,
 )
 
@@ -297,6 +299,116 @@ class EditMarkerDialog(QDialog):
             return
 
         super().accept()
+
+
+class SettingsDialog(QDialog):
+    """
+    Dialog for editing show settings.
+
+    Allows users to configure:
+    - Skip increment (seconds for skip forward/backward buttons)
+    - Marker nudge increment (milliseconds for arrow key adjustments)
+    """
+
+    def __init__(
+        self, skip_increment_seconds: int, marker_nudge_increment_ms: int, parent=None
+    ) -> None:
+        """
+        Initialize the settings dialog.
+
+        Args:
+            skip_increment_seconds: Current skip increment in seconds
+            marker_nudge_increment_ms: Current marker nudge increment in milliseconds
+            parent: Optional parent widget
+        """
+        super().__init__(parent)
+
+        self.setWindowTitle("Settings")
+        self.setModal(True)
+        self.setMinimumWidth(450)
+
+        self._skip_increment_seconds = skip_increment_seconds
+        self._marker_nudge_increment_ms = marker_nudge_increment_ms
+
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+        """Set up the user interface."""
+        layout = QVBoxLayout(self)
+
+        # Add description label
+        description = QLabel(
+            "Configure playback and marker settings for this show.\n"
+            "These settings are saved with the show file."
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("color: gray; margin-bottom: 10px;")
+        layout.addWidget(description)
+
+        # Form layout
+        form_layout = QFormLayout()
+
+        # Skip increment input
+        self._skip_increment_input = QSpinBox()
+        self._skip_increment_input.setMinimum(1)
+        self._skip_increment_input.setMaximum(60)
+        self._skip_increment_input.setValue(self._skip_increment_seconds)
+        self._skip_increment_input.setSuffix(" seconds")
+        self._skip_increment_input.setToolTip(
+            "Amount to skip forward/backward when using skip buttons"
+        )
+        form_layout.addRow("Skip Increment:", self._skip_increment_input)
+
+        # Marker nudge increment input
+        self._marker_nudge_input = QSpinBox()
+        self._marker_nudge_input.setMinimum(10)
+        self._marker_nudge_input.setMaximum(1000)
+        self._marker_nudge_input.setSingleStep(10)
+        self._marker_nudge_input.setValue(self._marker_nudge_increment_ms)
+        self._marker_nudge_input.setSuffix(" ms")
+        self._marker_nudge_input.setToolTip(
+            "Amount to adjust marker position when using arrow keys"
+        )
+        form_layout.addRow("Marker Nudge Increment:", self._marker_nudge_input)
+
+        layout.addLayout(form_layout)
+
+        # Add helpful hint
+        hint = QLabel(
+            "Tip: Use arrow keys (← →) to nudge selected markers by the increment above."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: gray; font-style: italic; margin-top: 10px;")
+        layout.addWidget(hint)
+
+        # Buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Set focus to first input
+        self._skip_increment_input.setFocus()
+
+    def get_skip_increment_seconds(self) -> int:
+        """
+        Get the skip increment value.
+
+        Returns:
+            Skip increment in seconds
+        """
+        return self._skip_increment_input.value()
+
+    def get_marker_nudge_increment_ms(self) -> int:
+        """
+        Get the marker nudge increment value.
+
+        Returns:
+            Marker nudge increment in milliseconds
+        """
+        return self._marker_nudge_input.value()
 
 
 def show_error(parent, title: str, message: str) -> None:

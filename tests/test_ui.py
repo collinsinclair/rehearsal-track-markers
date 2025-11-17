@@ -9,6 +9,7 @@ from rehearsal_track_markers.ui import (
     PlaybackControls,
     TrackSidebar,
 )
+from rehearsal_track_markers.ui.dialogs import SettingsDialog
 
 # Ensure QApplication exists for Qt tests
 app = QApplication.instance() or QApplication([])
@@ -416,3 +417,69 @@ class TestMainWindow:
 
         # Help menu actions
         assert window.about_action is not None
+
+
+class TestSettingsDialog:
+    """Tests for the SettingsDialog."""
+
+    def test_initialization(self) -> None:
+        """Test creating a SettingsDialog instance."""
+        dialog = SettingsDialog(skip_increment_seconds=5, marker_nudge_increment_ms=100)
+
+        assert dialog is not None
+        assert dialog.windowTitle() == "Settings"
+
+    def test_default_values_displayed(self) -> None:
+        """Test that default values are correctly displayed."""
+        dialog = SettingsDialog(skip_increment_seconds=7, marker_nudge_increment_ms=150)
+
+        assert dialog.get_skip_increment_seconds() == 7
+        assert dialog.get_marker_nudge_increment_ms() == 150
+
+    def test_get_skip_increment(self) -> None:
+        """Test getting skip increment value."""
+        dialog = SettingsDialog(skip_increment_seconds=5, marker_nudge_increment_ms=100)
+
+        # Default value
+        assert dialog.get_skip_increment_seconds() == 5
+
+        # Change value
+        dialog._skip_increment_input.setValue(10)
+        assert dialog.get_skip_increment_seconds() == 10
+
+    def test_get_marker_nudge_increment(self) -> None:
+        """Test getting marker nudge increment value."""
+        dialog = SettingsDialog(skip_increment_seconds=5, marker_nudge_increment_ms=100)
+
+        # Default value
+        assert dialog.get_marker_nudge_increment_ms() == 100
+
+        # Change value
+        dialog._marker_nudge_input.setValue(200)
+        assert dialog.get_marker_nudge_increment_ms() == 200
+
+    def test_skip_increment_range(self) -> None:
+        """Test that skip increment has proper constraints."""
+        dialog = SettingsDialog(skip_increment_seconds=5, marker_nudge_increment_ms=100)
+
+        # Test minimum
+        assert dialog._skip_increment_input.minimum() == 1
+
+        # Test maximum
+        assert dialog._skip_increment_input.maximum() == 60
+
+    def test_marker_nudge_increment_range(self) -> None:
+        """Test that marker nudge increment has proper constraints."""
+        dialog = SettingsDialog(skip_increment_seconds=5, marker_nudge_increment_ms=100)
+
+        # Test minimum
+        assert dialog._marker_nudge_input.minimum() == 10
+
+        # Test maximum
+        assert dialog._marker_nudge_input.maximum() == 1000
+
+    def test_marker_nudge_step(self) -> None:
+        """Test that marker nudge increment has 10ms step size."""
+        dialog = SettingsDialog(skip_increment_seconds=5, marker_nudge_increment_ms=100)
+
+        assert dialog._marker_nudge_input.singleStep() == 10

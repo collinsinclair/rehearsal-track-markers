@@ -12,6 +12,7 @@ from .ui.dialogs import (
     AddMarkerDialog,
     EditMarkerDialog,
     NewShowDialog,
+    SettingsDialog,
     confirm,
     show_error,
     show_info,
@@ -858,12 +859,55 @@ class AppController:
 
     def _on_settings(self) -> None:
         """Handle settings menu action."""
-        # Settings dialog will be implemented in Phase 5
-        show_info(
-            self._main_window,
-            "Settings",
-            "Settings dialog will be implemented in Phase 5.",
+        if self._current_show is None:
+            show_warning(
+                self._main_window,
+                "No Show",
+                "Please create or open a show first.\n\n"
+                "Settings are saved per-show, so you need to have a show open.",
+            )
+            return
+
+        logger.info("Settings dialog requested")
+
+        # Get current settings
+        current_settings = self._current_show.settings
+
+        # Show settings dialog
+        dialog = SettingsDialog(
+            skip_increment_seconds=current_settings.skip_increment_seconds,
+            marker_nudge_increment_ms=current_settings.marker_nudge_increment_ms,
+            parent=self._main_window,
         )
+
+        if dialog.exec():
+            # User clicked OK, apply changes
+            old_skip = current_settings.skip_increment_seconds
+            old_nudge = current_settings.marker_nudge_increment_ms
+
+            new_skip = dialog.get_skip_increment_seconds()
+            new_nudge = dialog.get_marker_nudge_increment_ms()
+
+            # Update settings
+            current_settings.skip_increment_seconds = new_skip
+            current_settings.marker_nudge_increment_ms = new_nudge
+
+            # Mark as modified if settings changed
+            if old_skip != new_skip or old_nudge != new_nudge:
+                self._is_modified = True
+                self._update_window_title()
+
+                # Update UI to reflect new skip increment
+                self._main_window.playback_controls.set_skip_increment(new_skip)
+
+                logger.info(f"Settings updated: skip={new_skip}s, nudge={new_nudge}ms")
+
+                show_info(
+                    self._main_window,
+                    "Settings Updated",
+                    "Settings have been updated successfully.\n\n"
+                    "Remember to save the show to persist these changes.",
+                )
 
     def _on_about(self) -> None:
         """Handle about menu action."""
