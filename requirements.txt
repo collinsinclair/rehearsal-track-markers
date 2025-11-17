@@ -1,1 +1,10 @@
 PySide6
+
+# Code quality tools
+black
+ruff
+mypy
+
+# Testing
+pytest
+pytest-cov

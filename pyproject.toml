@@ -1,5 +1,24 @@
 [project]
 name = "PySide Project"
+requires-python = ">=3.13"
 
 [tool.pyside6-project]
-files = ["widget.py"]
+files = [
+    "widget.py",
+    "rehearsal_track_markers/__init__.py",
+    "rehearsal_track_markers/models/__init__.py",
+    "rehearsal_track_markers/models/marker.py",
+    "rehearsal_track_markers/models/track.py",
+    "rehearsal_track_markers/models/show.py",
+    "rehearsal_track_markers/persistence/__init__.py",
+    "rehearsal_track_markers/persistence/file_manager.py",
+    "rehearsal_track_markers/persistence/show_repository.py",
+    "rehearsal_track_markers/audio/__init__.py",
+    "rehearsal_track_markers/audio/audio_file_manager.py",
+    "rehearsal_track_markers/utils/__init__.py",
+    "rehearsal_track_markers/utils/logging_config.py",
+    "tests/__init__.py",
+    "tests/test_models.py",
+    "tests/test_persistence.py",
+    "tests/test_audio.py"
+]
