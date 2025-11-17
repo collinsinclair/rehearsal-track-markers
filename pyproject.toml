@@ -16,10 +16,16 @@ files = [
     "rehearsal_track_markers/audio/__init__.py",
     "rehearsal_track_markers/audio/audio_file_manager.py",
     "rehearsal_track_markers/audio/audio_player.py",
+    "rehearsal_track_markers/ui/__init__.py",
+    "rehearsal_track_markers/ui/main_window.py",
+    "rehearsal_track_markers/ui/track_sidebar.py",
+    "rehearsal_track_markers/ui/playback_controls.py",
+    "rehearsal_track_markers/ui/marker_list.py",
     "rehearsal_track_markers/utils/__init__.py",
     "rehearsal_track_markers/utils/logging_config.py",
     "tests/__init__.py",
     "tests/test_models.py",
     "tests/test_persistence.py",
-    "tests/test_audio.py"
+    "tests/test_audio.py",
+    "tests/test_ui.py"
 ]
