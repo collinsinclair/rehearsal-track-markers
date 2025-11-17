@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
 from .marker_list import MarkerList
 from .playback_controls import PlaybackControls
 from .track_sidebar import TrackSidebar
+from .welcome_screen import WelcomeScreen
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -67,9 +69,16 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu("&File")
 
         self._new_show_action = QAction("&New Show...", self)
+        self._new_show_action.setToolTip("Create a new show/production")
+
         self._open_show_action = QAction("&Open Show...", self)
+        self._open_show_action.setToolTip("Open an existing show file")
+
         self._save_show_action = QAction("&Save Show", self)
+        self._save_show_action.setToolTip("Save the current show")
+
         self._save_show_as_action = QAction("Save Show &As...", self)
+        self._save_show_as_action.setToolTip("Save the current show to a new file")
 
         file_menu.addAction(self._new_show_action)
         file_menu.addAction(self._open_show_action)
@@ -105,12 +114,41 @@ class MainWindow(QMainWindow):
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
-        # Create central widget
+        # Create central widget with stacked layout (welcome screen vs. main UI)
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Create main horizontal layout
-        main_layout = QHBoxLayout(central_widget)
+        central_layout = QVBoxLayout(central_widget)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Create stacked widget to switch between welcome screen and main UI
+        self._stacked_widget = QStackedWidget()
+
+        # Create and add welcome screen
+        self._welcome_screen = WelcomeScreen()
+        self._stacked_widget.addWidget(self._welcome_screen)  # Index 0
+
+        # Create main UI (splitter with track sidebar and content)
+        main_ui_widget = self._create_main_ui()
+        self._stacked_widget.addWidget(main_ui_widget)  # Index 1
+
+        # Add stacked widget to layout
+        central_layout.addWidget(self._stacked_widget)
+
+        # Show welcome screen by default
+        self._stacked_widget.setCurrentIndex(0)
+
+        logger.debug("UI layout created")
+
+    def _create_main_ui(self) -> QWidget:
+        """
+        Create the main UI (visible when a show is loaded).
+
+        Returns:
+            Widget containing the main UI (track sidebar + content area)
+        """
+        main_ui_widget = QWidget()
+        main_layout = QHBoxLayout(main_ui_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Create splitter for resizable sections
@@ -132,7 +170,7 @@ class MainWindow(QMainWindow):
         # Add splitter to main layout
         main_layout.addWidget(splitter)
 
-        logger.debug("UI layout created")
+        return main_ui_widget
 
     def _setup_shortcuts(self) -> None:
         """Set up keyboard shortcuts."""
@@ -198,6 +236,11 @@ class MainWindow(QMainWindow):
     # Public accessors for UI components
 
     @property
+    def welcome_screen(self) -> WelcomeScreen:
+        """Get the welcome screen widget."""
+        return self._welcome_screen
+
+    @property
     def track_sidebar(self) -> TrackSidebar:
         """Get the track sidebar widget."""
         return self._track_sidebar
@@ -211,6 +254,16 @@ class MainWindow(QMainWindow):
     def marker_list(self) -> MarkerList:
         """Get the marker list widget."""
         return self._marker_list
+
+    def show_welcome_screen(self) -> None:
+        """Show the welcome screen (when no show is loaded)."""
+        self._stacked_widget.setCurrentIndex(0)
+        logger.debug("Showing welcome screen")
+
+    def show_main_ui(self) -> None:
+        """Show the main UI (when a show is loaded)."""
+        self._stacked_widget.setCurrentIndex(1)
+        logger.debug("Showing main UI")
 
     # Menu action accessors
 

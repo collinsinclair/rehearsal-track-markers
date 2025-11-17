@@ -65,12 +65,20 @@ class TrackSidebar(QWidget):
 
         # Create "Add Track" button
         self._add_track_button = QPushButton("+ Add Track")
+        self._add_track_button.setToolTip(
+            "Add audio files to this show\n"
+            "Supported formats: MP3, WAV, M4A, FLAC, OGG"
+        )
 
         # Create "Remove Track" button
         self._remove_track_button = QPushButton("- Remove Track")
         self._remove_track_button.setEnabled(
             False
         )  # Disabled until a track is selected
+        self._remove_track_button.setToolTip(
+            "Remove the selected track from this show\n"
+            "(This will delete the audio file and all markers)"
+        )
 
         button_layout.addWidget(self._add_track_button)
         button_layout.addWidget(self._remove_track_button)

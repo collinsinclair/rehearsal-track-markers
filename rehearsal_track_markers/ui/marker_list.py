@@ -3,6 +3,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -75,18 +76,28 @@ class MarkerList(QWidget):
 
         # Add Marker button
         self._add_marker_button = QPushButton("+ Add Marker (M)")
+        self._add_marker_button.setToolTip(
+            "Add a new marker at the current playback position\n" "Keyboard shortcut: M"
+        )
         layout.addWidget(self._add_marker_button)
 
         # Marker list
         self._marker_list = QListWidget()
         self._marker_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self._marker_list.setToolTip(
+            "Double-click a marker to jump to that position\n"
+            "Select a marker and use ← → to adjust its position"
+        )
         layout.addWidget(self._marker_list)
 
         # Edit/Delete buttons
         button_layout = QHBoxLayout()
 
         self._edit_button = QPushButton("Edit")
+        self._edit_button.setToolTip("Rename the selected marker")
+
         self._delete_button = QPushButton("Delete")
+        self._delete_button.setToolTip("Delete the selected marker")
 
         button_layout.addWidget(self._edit_button)
         button_layout.addWidget(self._delete_button)
@@ -97,6 +108,15 @@ class MarkerList(QWidget):
         # Initially disable edit/delete buttons (no marker selected)
         self._edit_button.setEnabled(False)
         self._delete_button.setEnabled(False)
+
+        # Add hint about arrow keys
+        hint_label = QLabel("Tip: Use ← → to nudge selected marker")
+        hint_label.setStyleSheet(
+            "font-size: 10pt; padding: 8px; "
+            "border: 1px solid palette(mid); border-radius: 3px;"
+        )
+        hint_label.setWordWrap(True)
+        layout.addWidget(hint_label)
 
     def _connect_signals(self) -> None:
         """Connect internal signals."""

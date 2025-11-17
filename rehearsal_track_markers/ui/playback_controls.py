@@ -68,9 +68,16 @@ class PlaybackControls(QWidget):
         button_layout = QHBoxLayout()
 
         self._play_button = QPushButton("Play")
+        self._play_button.setToolTip("Start playback (or press Space)")
+
         self._pause_button = QPushButton("Pause")
+        self._pause_button.setToolTip("Pause playback (or press Space)")
+
         self._skip_back_button = QPushButton("<<5s")
+        self._skip_back_button.setToolTip("Skip backward by configured increment")
+
         self._skip_forward_button = QPushButton("5s>>")
+        self._skip_forward_button.setToolTip("Skip forward by configured increment")
 
         button_layout.addWidget(self._play_button)
         button_layout.addWidget(self._pause_button)
@@ -84,6 +91,10 @@ class PlaybackControls(QWidget):
         self._progress_slider = MarkerProgressBar(Qt.Orientation.Horizontal)
         self._progress_slider.setRange(0, 0)  # Will be updated when track loads
         self._progress_slider.setValue(0)
+        self._progress_slider.setToolTip(
+            "Click or drag to scrub through the track\n"
+            "Red markers indicate saved positions"
+        )
         layout.addWidget(self._progress_slider)
 
         # Time display

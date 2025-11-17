@@ -23,6 +23,7 @@ files = [
     "rehearsal_track_markers/ui/playback_controls.py",
     "rehearsal_track_markers/ui/marker_list.py",
     "rehearsal_track_markers/ui/marker_progress_bar.py",
+    "rehearsal_track_markers/ui/welcome_screen.py",
     "rehearsal_track_markers/ui/dialogs.py",
     "rehearsal_track_markers/utils/__init__.py",
     "rehearsal_track_markers/utils/logging_config.py",

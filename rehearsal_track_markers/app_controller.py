@@ -54,6 +54,9 @@ class AppController:
         self._connect_ui_signals()
         self._connect_audio_player_signals()
 
+        # Show welcome screen initially (no show loaded yet)
+        self._main_window.show_welcome_screen()
+
         logger.info("AppController initialized")
 
     def _connect_menu_actions(self) -> None:
@@ -75,6 +78,10 @@ class AppController:
 
     def _connect_ui_signals(self) -> None:
         """Connect UI component signals to handlers."""
+        # Welcome screen
+        self._main_window.welcome_screen.new_show_requested.connect(self._on_new_show)
+        self._main_window.welcome_screen.open_show_requested.connect(self._on_open_show)
+
         # Main window keyboard shortcuts
         self._main_window.space_pressed.connect(self._on_toggle_play_pause)
         self._main_window.m_key_pressed.connect(self._on_add_marker)
@@ -302,11 +309,17 @@ class AppController:
     def _update_ui_for_show(self) -> None:
         """Update UI to reflect current show state."""
         if self._current_show is None:
+            # Show welcome screen when no show is loaded
+            self._main_window.show_welcome_screen()
+
             # Clear UI
             self._main_window.track_sidebar.clear_tracks()
             self._main_window.marker_list.clear_markers()
             self._main_window.playback_controls.set_track_title("No track selected")
             return
+
+        # Show main UI when a show is loaded
+        self._main_window.show_main_ui()
 
         # Update track sidebar
         track_names = [track.filename for track in self._current_show.tracks]
