@@ -52,12 +52,13 @@ class AppController:
         self._show_repository = ShowRepository(self._file_manager)
         self._audio_player = AudioPlayer()
 
-        # Setup auto-save timer
+        # Setup auto-save debounce timer
+        # Instead of saving every 2 minutes, save 500ms after any change
+        # This makes auto-save feel instant while preventing excessive saves
         self._auto_save_timer = QTimer()
         self._auto_save_timer.timeout.connect(self._on_auto_save)
-        self._auto_save_interval_ms = 120000  # 2 minutes
-        self._auto_save_timer.start(self._auto_save_interval_ms)
-        self._last_auto_save_time = None
+        self._auto_save_timer.setSingleShot(True)  # Only fire once per start
+        self._auto_save_debounce_ms = 500  # 500ms after last change
 
         # Connect signals
         self._connect_menu_actions()
@@ -67,7 +68,7 @@ class AppController:
         # Show welcome screen initially (no show loaded yet)
         self._main_window.show_welcome_screen()
 
-        logger.info("AppController initialized with auto-save every 2 minutes")
+        logger.info("AppController initialized with auto-save after each change")
 
     def _connect_menu_actions(self) -> None:
         """Connect menu actions to handlers."""
@@ -627,9 +628,8 @@ class AppController:
             # Update UI
             self._main_window.track_sidebar.add_track(track.filename)
 
-            # Mark as modified
-            self._is_modified = True
-            self._update_window_title()
+            # Trigger auto-save
+            self._trigger_auto_save()
 
             logger.info(f"Track added successfully: {track.filename}")
 
@@ -736,9 +736,8 @@ class AppController:
                 track.audio_path.unlink()
                 logger.info(f"Deleted audio file: {track.audio_path}")
 
-            # Mark as modified
-            self._is_modified = True
-            self._update_window_title()
+            # Trigger auto-save
+            self._trigger_auto_save()
 
             logger.info(f"Track removed successfully: {track.filename}")
 
@@ -880,9 +879,8 @@ class AppController:
             marker_positions = [m.timestamp_ms for m in track.markers]
             self._main_window.playback_controls.set_markers(marker_positions)
 
-            # Mark as modified
-            self._is_modified = True
-            self._update_window_title()
+            # Trigger auto-save
+            self._trigger_auto_save()
 
             logger.info(f"Marker added: {name} @ {timestamp_ms}ms")
 
@@ -966,9 +964,8 @@ class AppController:
                 marker_positions = [m.timestamp_ms for m in track.markers]
                 self._main_window.playback_controls.set_markers(marker_positions)
 
-                # Mark as modified
-                self._is_modified = True
-                self._update_window_title()
+                # Trigger auto-save
+                self._trigger_auto_save()
 
                 logger.info(f"Marker renamed to: {new_name}")
 
@@ -1005,9 +1002,8 @@ class AppController:
                 marker_positions = [m.timestamp_ms for m in track.markers]
                 self._main_window.playback_controls.set_markers(marker_positions)
 
-                # Mark as modified
-                self._is_modified = True
-                self._update_window_title()
+                # Trigger auto-save
+                self._trigger_auto_save()
 
                 logger.info(f"Marker deleted: {marker.name}")
 
@@ -1068,27 +1064,42 @@ class AppController:
         marker_positions = [m.timestamp_ms for m in track.markers]
         self._main_window.playback_controls.set_markers(marker_positions)
 
-        # Mark as modified
-        self._is_modified = True
-        self._update_window_title()
+        # Trigger auto-save
+        self._trigger_auto_save()
 
-        logger.info(
+        logger.debug(
             f"Marker '{marker.name}' nudged {direction * nudge_increment_ms}ms "
             f"to {marker.timestamp_ms}ms"
         )
 
     # Auto-Save
 
+    def _trigger_auto_save(self) -> None:
+        """
+        Trigger a debounced auto-save.
+
+        Called after any modification action. Uses a timer to debounce rapid changes,
+        so multiple quick actions only result in one save operation.
+        """
+        if self._current_show is None:
+            return
+
+        # Mark as modified
+        self._is_modified = True
+        self._update_window_title()
+
+        # Restart the debounce timer
+        # If already running, this resets it (prevents saving during rapid edits)
+        self._auto_save_timer.start(self._auto_save_debounce_ms)
+
     def _on_auto_save(self) -> None:
-        """Handle auto-save timer timeout."""
-        # Only auto-save if:
-        # 1. There's a current show
-        # 2. The show has been modified
-        if self._current_show is None or not self._is_modified:
+        """Handle auto-save timer timeout (debounced save)."""
+        # Only auto-save if there's a current show
+        if self._current_show is None:
             return
 
         try:
-            logger.info("Auto-saving show...")
+            logger.debug("Auto-saving show...")
 
             # Save the show using proper method
             self._show_repository.save(self._current_show)
@@ -1096,11 +1107,8 @@ class AppController:
             # Update state
             self._is_modified = False
             self._update_window_title()
-            self._last_auto_save_time = (
-                QTimer.currentTime() if hasattr(QTimer, "currentTime") else None
-            )
 
-            logger.info("Auto-save successful")
+            logger.debug("Auto-save successful")
 
             # Optional: Show brief status message in the UI
             # (Could add a status bar message here in the future)
@@ -1147,21 +1155,20 @@ class AppController:
             current_settings.skip_increment_seconds = new_skip
             current_settings.marker_nudge_increment_ms = new_nudge
 
-            # Mark as modified if settings changed
+            # Trigger auto-save if settings changed
             if old_skip != new_skip or old_nudge != new_nudge:
-                self._is_modified = True
-                self._update_window_title()
-
                 # Update UI to reflect new skip increment
                 self._main_window.playback_controls.set_skip_increment(new_skip)
+
+                # Trigger auto-save
+                self._trigger_auto_save()
 
                 logger.info(f"Settings updated: skip={new_skip}s, nudge={new_nudge}ms")
 
                 show_info(
                     self._main_window,
                     "Settings Updated",
-                    "Settings have been updated successfully.\n\n"
-                    "Remember to save the show to persist these changes.",
+                    "Settings have been updated successfully.",
                 )
 
     def _on_about(self) -> None:
