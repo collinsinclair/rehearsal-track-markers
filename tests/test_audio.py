@@ -1,9 +1,9 @@
 """Unit tests for audio file management and playback."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtTest import QSignalSpy
 from PySide6.QtWidgets import QApplication

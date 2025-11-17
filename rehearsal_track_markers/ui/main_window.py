@@ -10,10 +10,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..utils.logging_config import get_logger
 from .marker_list import MarkerList
 from .playback_controls import PlaybackControls
 from .track_sidebar import TrackSidebar
+from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

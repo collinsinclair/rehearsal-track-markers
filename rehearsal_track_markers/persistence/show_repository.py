@@ -3,9 +3,9 @@
 import json
 from pathlib import Path
 
+from .file_manager import FileManager
 from ..models import Show
 from ..utils.logging_config import get_logger
-from .file_manager import FileManager
 
 logger = get_logger(__name__)
 

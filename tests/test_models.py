@@ -1,7 +1,8 @@
 """Unit tests for data models."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from rehearsal_track_markers.models import Marker, Track, Show
 from rehearsal_track_markers.models.show import Settings
