@@ -37,6 +37,8 @@ class MainWindow(QMainWindow):
     # Signals for keyboard shortcuts
     space_pressed = Signal()
     m_key_pressed = Signal()
+    arrow_left_pressed = Signal()
+    arrow_right_pressed = Signal()
 
     def __init__(self) -> None:
         """Initialize the main window."""
@@ -142,6 +144,13 @@ class MainWindow(QMainWindow):
         m_shortcut = QShortcut(QKeySequence(Qt.Key.Key_M), self)
         m_shortcut.activated.connect(self._on_m_key_pressed)
 
+        # Arrow keys: nudge selected marker
+        left_arrow_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Left), self)
+        left_arrow_shortcut.activated.connect(self._on_arrow_left_pressed)
+
+        right_arrow_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Right), self)
+        right_arrow_shortcut.activated.connect(self._on_arrow_right_pressed)
+
         logger.debug("Keyboard shortcuts configured")
 
     def _on_space_pressed(self) -> None:
@@ -153,6 +162,16 @@ class MainWindow(QMainWindow):
         """Handle M key press."""
         logger.debug("M key pressed")
         self.m_key_pressed.emit()
+
+    def _on_arrow_left_pressed(self) -> None:
+        """Handle left arrow key press."""
+        logger.debug("Left arrow pressed")
+        self.arrow_left_pressed.emit()
+
+    def _on_arrow_right_pressed(self) -> None:
+        """Handle right arrow key press."""
+        logger.debug("Right arrow pressed")
+        self.arrow_right_pressed.emit()
 
     def _create_main_content_area(self) -> QWidget:
         """

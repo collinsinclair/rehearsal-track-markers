@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -27,11 +28,13 @@ class TrackSidebar(QWidget):
     Signals:
         track_selected: Emitted when a track is selected (index: int)
         add_track_clicked: Emitted when "Add Track" button is clicked
+        remove_track_clicked: Emitted when "Remove Track" button is clicked (index: int)
     """
 
     # Signals
     track_selected = Signal(int)  # Track index
     add_track_clicked = Signal()
+    remove_track_clicked = Signal(int)  # Track index
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """
@@ -57,12 +60,24 @@ class TrackSidebar(QWidget):
         self._track_list = QListWidget()
         self._track_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
 
+        # Create buttons layout
+        button_layout = QHBoxLayout()
+
         # Create "Add Track" button
         self._add_track_button = QPushButton("+ Add Track")
 
+        # Create "Remove Track" button
+        self._remove_track_button = QPushButton("- Remove Track")
+        self._remove_track_button.setEnabled(
+            False
+        )  # Disabled until a track is selected
+
+        button_layout.addWidget(self._add_track_button)
+        button_layout.addWidget(self._remove_track_button)
+
         # Add widgets to layout
         layout.addWidget(self._track_list)
-        layout.addWidget(self._add_track_button)
+        layout.addLayout(button_layout)
 
         # Set minimum width for sidebar
         self.setMinimumWidth(200)
@@ -71,6 +86,7 @@ class TrackSidebar(QWidget):
         """Connect internal signals."""
         self._track_list.currentRowChanged.connect(self._on_selection_changed)
         self._add_track_button.clicked.connect(self._on_add_track_clicked)
+        self._remove_track_button.clicked.connect(self._on_remove_track_clicked)
 
     def add_track(self, track_name: str) -> None:
         """
@@ -154,6 +170,9 @@ class TrackSidebar(QWidget):
         Args:
             current_row: Index of newly selected row (-1 if none)
         """
+        # Enable/disable remove button based on selection
+        self._remove_track_button.setEnabled(current_row >= 0)
+
         if current_row >= 0:
             logger.debug(f"Track selected: index {current_row}")
             self.track_selected.emit(current_row)
@@ -162,3 +181,10 @@ class TrackSidebar(QWidget):
         """Handle Add Track button click."""
         logger.debug("Add Track button clicked")
         self.add_track_clicked.emit()
+
+    def _on_remove_track_clicked(self) -> None:
+        """Handle Remove Track button click."""
+        index = self.get_selected_index()
+        if index >= 0:
+            logger.debug(f"Remove Track button clicked: index {index}")
+            self.remove_track_clicked.emit(index)

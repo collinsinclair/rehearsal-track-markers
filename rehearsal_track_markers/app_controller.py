@@ -78,10 +78,15 @@ class AppController:
         # Main window keyboard shortcuts
         self._main_window.space_pressed.connect(self._on_toggle_play_pause)
         self._main_window.m_key_pressed.connect(self._on_add_marker)
+        self._main_window.arrow_left_pressed.connect(self._on_nudge_marker_backward)
+        self._main_window.arrow_right_pressed.connect(self._on_nudge_marker_forward)
 
         # Track sidebar
         self._main_window.track_sidebar.add_track_clicked.connect(self._on_add_track)
         self._main_window.track_sidebar.track_selected.connect(self._on_track_selected)
+        self._main_window.track_sidebar.remove_track_clicked.connect(
+            self._on_remove_track
+        )
 
         # Playback controls
         self._main_window.playback_controls.play_clicked.connect(self._on_play)
@@ -441,6 +446,74 @@ class AppController:
                 f"Audio file not found: {track.audio_path}",
             )
 
+    def _on_remove_track(self, index: int) -> None:
+        """
+        Handle remove track button click.
+
+        Args:
+            index: Index of track to remove
+        """
+        if self._current_show is None or index < 0:
+            return
+
+        track = self._current_show.get_track(index)
+        if track is None:
+            return
+
+        logger.info(f"Remove track requested: {track.filename} at index {index}")
+
+        # Confirm deletion
+        if not confirm(
+            self._main_window,
+            "Remove Track",
+            f'Are you sure you want to remove track "{track.filename}"?\n\n'
+            f"This will delete the audio file and all markers for this track.",
+        ):
+            return
+
+        try:
+            # Stop playback if this track is currently selected
+            if self._current_track_index == index:
+                self._audio_player.stop()
+                self._audio_player.unload()
+                self._current_track_index = -1
+
+            # Remove track from show model
+            self._current_show.remove_track(index)
+
+            # Remove from UI
+            self._main_window.track_sidebar.remove_track(index)
+
+            # Clear marker list if this was the selected track
+            if self._current_track_index == -1:
+                self._main_window.marker_list.clear_markers()
+                self._main_window.playback_controls.set_track_title("No track selected")
+                self._main_window.playback_controls.clear_markers()
+
+            # Update current track index if needed
+            if self._current_track_index > index:
+                self._current_track_index -= 1
+
+            # Delete audio file from storage
+            # Note: We delete the file to save space, but this is irreversible
+            if track.audio_path.exists():
+                track.audio_path.unlink()
+                logger.info(f"Deleted audio file: {track.audio_path}")
+
+            # Mark as modified
+            self._is_modified = True
+            self._update_window_title()
+
+            logger.info(f"Track removed successfully: {track.filename}")
+
+        except Exception as e:
+            logger.error(f"Failed to remove track: {e}")
+            show_error(
+                self._main_window,
+                "Remove Track Failed",
+                f"Failed to remove track: {e}",
+            )
+
     # Playback Controls (4.3)
 
     def _on_toggle_play_pause(self) -> None:
@@ -701,6 +774,72 @@ class AppController:
                 self._update_window_title()
 
                 logger.info(f"Marker deleted: {marker.name}")
+
+    def _on_nudge_marker_backward(self) -> None:
+        """Handle left arrow key press to nudge marker backward."""
+        self._nudge_selected_marker(-1)
+
+    def _on_nudge_marker_forward(self) -> None:
+        """Handle right arrow key press to nudge marker forward."""
+        self._nudge_selected_marker(1)
+
+    def _nudge_selected_marker(self, direction: int) -> None:
+        """
+        Nudge the selected marker's timestamp by the configured increment.
+
+        Args:
+            direction: 1 for forward (right arrow), -1 for backward (left arrow)
+        """
+        if self._current_show is None or self._current_track_index < 0:
+            return
+
+        track = self._current_show.get_track(self._current_track_index)
+        if track is None:
+            return
+
+        # Get selected marker index from UI
+        selected_index = self._main_window.marker_list.get_selected_index()
+        if selected_index < 0:
+            logger.debug("No marker selected for nudging")
+            return
+
+        if selected_index >= len(track.markers):
+            return
+
+        marker = track.markers[selected_index]
+
+        # Get nudge increment from settings
+        nudge_increment_ms = self._current_show.settings.marker_nudge_increment_ms
+
+        # Calculate new timestamp
+        new_timestamp = marker.timestamp_ms + (direction * nudge_increment_ms)
+
+        # Clamp to valid range (0 to track duration)
+        new_timestamp = max(0, new_timestamp)
+        duration_ms = self._audio_player.get_duration_ms()
+        if duration_ms > 0:
+            new_timestamp = min(new_timestamp, duration_ms)
+
+        # Update marker timestamp
+        marker.timestamp_ms = new_timestamp
+
+        # Update UI
+        self._main_window.marker_list.update_marker(
+            selected_index, marker.name, marker.timestamp_ms
+        )
+
+        # Update marker visualization on progress bar
+        marker_positions = [m.timestamp_ms for m in track.markers]
+        self._main_window.playback_controls.set_markers(marker_positions)
+
+        # Mark as modified
+        self._is_modified = True
+        self._update_window_title()
+
+        logger.info(
+            f"Marker '{marker.name}' nudged {direction * nudge_increment_ms}ms "
+            f"to {marker.timestamp_ms}ms"
+        )
 
     # Settings and About
 
