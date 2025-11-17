@@ -1,7 +1,9 @@
 """Application controller coordinating UI, data models, and audio playback."""
 
+import json
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFileDialog
 
 from .audio import AudioFileManager, AudioPlayer
@@ -50,6 +52,13 @@ class AppController:
         self._show_repository = ShowRepository(self._file_manager)
         self._audio_player = AudioPlayer()
 
+        # Setup auto-save timer
+        self._auto_save_timer = QTimer()
+        self._auto_save_timer.timeout.connect(self._on_auto_save)
+        self._auto_save_interval_ms = 120000  # 2 minutes
+        self._auto_save_timer.start(self._auto_save_interval_ms)
+        self._last_auto_save_time = None
+
         # Connect signals
         self._connect_menu_actions()
         self._connect_ui_signals()
@@ -58,7 +67,7 @@ class AppController:
         # Show welcome screen initially (no show loaded yet)
         self._main_window.show_welcome_screen()
 
-        logger.info("AppController initialized")
+        logger.info("AppController initialized with auto-save every 2 minutes")
 
     def _connect_menu_actions(self) -> None:
         """Connect menu actions to handlers."""
@@ -67,15 +76,16 @@ class AppController:
         self._main_window.open_show_action.triggered.connect(self._on_open_show)
         self._main_window.save_show_action.triggered.connect(self._on_save_show)
         self._main_window.save_show_as_action.triggered.connect(self._on_save_show_as)
-        # Import/export will be implemented in Phase 6
-        self._main_window.import_show_action.setEnabled(False)
-        self._main_window.export_show_action.setEnabled(False)
 
         # Edit menu
         self._main_window.settings_action.triggered.connect(self._on_settings)
 
         # Help menu
         self._main_window.about_action.triggered.connect(self._on_about)
+
+        # Enable import/export actions
+        self._main_window.import_show_action.triggered.connect(self._on_import_show)
+        self._main_window.export_show_action.triggered.connect(self._on_export_show)
 
     def _connect_ui_signals(self) -> None:
         """Connect UI component signals to handlers."""
@@ -216,6 +226,202 @@ class AppController:
 
         if file_path:
             self._save_show(Path(file_path))
+
+    def _on_export_show(self) -> None:
+        """Handle Export Show menu action."""
+        if self._current_show is None:
+            logger.warning("No show to export")
+            show_warning(
+                self._main_window,
+                "No Show",
+                "Please create or open a show first.",
+            )
+            return
+
+        logger.info("Export show requested")
+
+        # Show file dialog for export location
+        suggested_name = self._current_show.name.replace(" ", "_") + ".json"
+        default_path = str(Path.home() / suggested_name)
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self._main_window,
+            "Export Show",
+            default_path,
+            "Show Files (*.json);;All Files (*)",
+        )
+
+        if file_path:
+            self._export_show(Path(file_path))
+
+    def _on_import_show(self) -> None:
+        """Handle Import Show menu action."""
+        logger.info("Import show requested")
+
+        # Check for unsaved changes
+        if not self._check_unsaved_changes():
+            return
+
+        # Show file dialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self._main_window,
+            "Import Show",
+            str(Path.home()),
+            "Show Files (*.json);;All Files (*)",
+        )
+
+        if file_path:
+            self._import_show(Path(file_path))
+
+    def _export_show(self, export_path: Path) -> None:
+        """
+        Export the current show to a file.
+
+        Args:
+            export_path: Path to export the show JSON file
+
+        Note:
+            Audio files are NOT included in the export. Users need to
+            manually copy the audio files if sharing with others.
+        """
+        if self._current_show is None:
+            return
+
+        try:
+            logger.info(f"Exporting show to: {export_path}")
+
+            # Export show to the file path
+            self._show_repository.export_show(self._current_show, export_path)
+
+            logger.info("Show exported successfully")
+            show_info(
+                self._main_window,
+                "Show Exported",
+                f'Show "{self._current_show.name}" exported successfully to:\n'
+                f"{export_path}\n\n"
+                f"Note: Audio files are NOT included in the export. "
+                f"To share this show with others, you'll also need to share the audio files.",
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to export show: {e}")
+            show_error(
+                self._main_window,
+                "Export Failed",
+                f"Failed to export show: {e}",
+            )
+
+    def _import_show(self, import_path: Path) -> None:
+        """
+        Import a show from a file.
+
+        Args:
+            import_path: Path to the show JSON file to import
+
+        Note:
+            Expects audio files to be in an "audio" subdirectory next to the JSON file.
+            Audio files will be copied to app storage.
+        """
+        try:
+            logger.info(f"Importing show from: {import_path}")
+
+            # Check if audio directory exists
+            audio_dir = import_path.parent / "audio"
+            if not audio_dir.exists():
+                # Ask user to locate audio directory
+                audio_dir_str = QFileDialog.getExistingDirectory(
+                    self._main_window,
+                    "Locate Audio Files Directory",
+                    str(import_path.parent),
+                    QFileDialog.Option.ShowDirsOnly,
+                )
+
+                if not audio_dir_str:
+                    show_warning(
+                        self._main_window,
+                        "Import Cancelled",
+                        "Audio files directory not selected. Import cancelled.",
+                    )
+                    return
+
+                audio_dir = Path(audio_dir_str)
+
+            # Import show from the file path
+            show = self._show_repository.import_show(import_path, audio_dir)
+
+            # Copy audio files to app storage
+            for track in show.tracks:
+                source_audio_path = audio_dir / track.filename
+
+                if not source_audio_path.exists():
+                    show_warning(
+                        self._main_window,
+                        "Audio File Missing",
+                        f"Audio file not found: {track.filename}\n\n"
+                        f"This track will be imported but audio playback won't work.",
+                    )
+                    continue
+
+                # Copy audio file to app storage
+                try:
+                    dest_track = self._audio_file_manager.add_audio_file_to_show(
+                        source_audio_path, show.name
+                    )
+                    # Update track's audio path to the copied location
+                    track.audio_path = dest_track.audio_path
+                    logger.info(f"Copied audio file: {track.filename}")
+                except Exception as e:
+                    logger.error(f"Failed to copy audio file {track.filename}: {e}")
+                    show_warning(
+                        self._main_window,
+                        "Audio Copy Failed",
+                        f"Failed to copy audio file: {track.filename}\n\n{e}",
+                    )
+
+            # Save the imported show
+            self._show_repository.save(show)
+
+            # Load the imported show
+            self._current_show = show
+            self._show_file_path = self._file_manager.get_show_file_path(show.name)
+            self._current_track_index = -1
+            self._is_modified = False
+
+            # Update UI
+            self._update_ui_for_show()
+            self._update_window_title()
+
+            logger.info(f"Show imported successfully: {show.name}")
+            show_info(
+                self._main_window,
+                "Show Imported",
+                f'Show "{show.name}" imported successfully with {len(show.tracks)} track(s).',
+            )
+
+        except FileNotFoundError as e:
+            logger.error(f"Import file not found: {e}")
+            show_error(
+                self._main_window,
+                "Import Failed",
+                f"Import file not found: {e}",
+            )
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in import file: {e}")
+            show_error(
+                self._main_window,
+                "Import Failed",
+                f"Invalid JSON file: {e}\n\n"
+                f"Please ensure the file is a valid show export.",
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to import show: {e}")
+            show_error(
+                self._main_window,
+                "Import Failed",
+                f"Failed to import show: {e}",
+            )
 
     def _load_show(self, file_path: Path) -> None:
         """
@@ -854,6 +1060,44 @@ class AppController:
             f"Marker '{marker.name}' nudged {direction * nudge_increment_ms}ms "
             f"to {marker.timestamp_ms}ms"
         )
+
+    # Auto-Save
+
+    def _on_auto_save(self) -> None:
+        """Handle auto-save timer timeout."""
+        # Only auto-save if:
+        # 1. There's a current show
+        # 2. The show has been modified
+        # 3. We have a save path (show has been saved at least once)
+        if (
+            self._current_show is None
+            or not self._is_modified
+            or self._show_file_path is None
+        ):
+            return
+
+        try:
+            logger.info("Auto-saving show...")
+
+            # Save the show
+            self._show_repository.export_show(self._current_show, self._show_file_path)
+
+            # Update state
+            self._is_modified = False
+            self._update_window_title()
+            self._last_auto_save_time = (
+                QTimer.currentTime() if hasattr(QTimer, "currentTime") else None
+            )
+
+            logger.info("Auto-save successful")
+
+            # Optional: Show brief status message in the UI
+            # (Could add a status bar message here in the future)
+
+        except Exception as e:
+            logger.error(f"Auto-save failed: {e}")
+            # Don't show error dialog during auto-save to avoid interrupting user
+            # Just log the error
 
     # Settings and About
 
