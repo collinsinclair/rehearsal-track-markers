@@ -1,7 +1,7 @@
 """Main window for the Rehearsal Track Marker application."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
@@ -27,10 +27,16 @@ class MainWindow(QMainWindow):
     - Track sidebar (left)
     - Playback controls and marker list (right)
     - Splitter layout for resizable sections
+    - Keyboard shortcuts (Space: play/pause, M: add marker)
 
-    This is the shell/framework for Phase 3. Functionality will be
-    connected in Phase 4.
+    Signals:
+        space_pressed: Emitted when spacebar is pressed (toggle play/pause)
+        m_key_pressed: Emitted when M key is pressed (add marker)
     """
+
+    # Signals for keyboard shortcuts
+    space_pressed = Signal()
+    m_key_pressed = Signal()
 
     def __init__(self) -> None:
         """Initialize the main window."""
@@ -39,6 +45,7 @@ class MainWindow(QMainWindow):
         self._setup_window()
         self._setup_menu_bar()
         self._setup_ui()
+        self._setup_shortcuts()
 
         logger.info("MainWindow initialized")
 
@@ -124,6 +131,28 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(splitter)
 
         logger.debug("UI layout created")
+
+    def _setup_shortcuts(self) -> None:
+        """Set up keyboard shortcuts."""
+        # Spacebar: toggle play/pause
+        space_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
+        space_shortcut.activated.connect(self._on_space_pressed)
+
+        # M key: add marker
+        m_shortcut = QShortcut(QKeySequence(Qt.Key.Key_M), self)
+        m_shortcut.activated.connect(self._on_m_key_pressed)
+
+        logger.debug("Keyboard shortcuts configured")
+
+    def _on_space_pressed(self) -> None:
+        """Handle spacebar press."""
+        logger.debug("Spacebar pressed")
+        self.space_pressed.emit()
+
+    def _on_m_key_pressed(self) -> None:
+        """Handle M key press."""
+        logger.debug("M key pressed")
+        self.m_key_pressed.emit()
 
     def _create_main_content_area(self) -> QWidget:
         """

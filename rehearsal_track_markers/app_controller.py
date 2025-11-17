@@ -75,6 +75,10 @@ class AppController:
 
     def _connect_ui_signals(self) -> None:
         """Connect UI component signals to handlers."""
+        # Main window keyboard shortcuts
+        self._main_window.space_pressed.connect(self._on_toggle_play_pause)
+        self._main_window.m_key_pressed.connect(self._on_add_marker)
+
         # Track sidebar
         self._main_window.track_sidebar.add_track_clicked.connect(self._on_add_track)
         self._main_window.track_sidebar.track_selected.connect(self._on_track_selected)
@@ -438,6 +442,10 @@ class AppController:
             )
 
     # Playback Controls (4.3)
+
+    def _on_toggle_play_pause(self) -> None:
+        """Handle toggle play/pause (spacebar shortcut)."""
+        self._audio_player.toggle_play_pause()
 
     def _on_play(self) -> None:
         """Handle play button click."""

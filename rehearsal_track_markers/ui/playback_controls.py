@@ -82,7 +82,7 @@ class PlaybackControls(QWidget):
 
         # Progress bar with marker visualization
         self._progress_slider = MarkerProgressBar(Qt.Orientation.Horizontal)
-        self._progress_slider.setRange(0, 1000)  # Will be updated based on duration
+        self._progress_slider.setRange(0, 0)  # Will be updated when track loads
         self._progress_slider.setValue(0)
         layout.addWidget(self._progress_slider)
 
@@ -122,11 +122,8 @@ class PlaybackControls(QWidget):
         # Block signals to avoid feedback loop
         self._progress_slider.blockSignals(True)
 
-        # Convert position to slider value
-        duration = self._progress_slider.maximum()
-        if duration > 0:
-            slider_value = int((position_ms / duration) * 1000)
-            self._progress_slider.setValue(slider_value)
+        # Slider range is in milliseconds, so set value directly
+        self._progress_slider.setValue(position_ms)
 
         self._progress_slider.blockSignals(False)
 
