@@ -9,10 +9,10 @@ from .models import Marker, Show
 from .persistence import FileManager, ShowRepository
 from .ui import MainWindow
 from .ui.dialogs import (
+    AddMarkerDialog,
     EditMarkerDialog,
     NewShowDialog,
     confirm,
-    get_text_input,
     show_error,
     show_info,
     show_warning,
@@ -527,25 +527,29 @@ class AppController:
             )
             return
 
+        track = self._current_show.get_track(self._current_track_index)
+        if track is None:
+            return
+
         # Get current position
         position_ms = self._audio_player.get_position_ms()
 
-        # Prompt for marker name
-        marker_name = get_text_input(
-            self._main_window,
-            "Add Marker",
-            "Marker name:",
-        )
+        # Get existing marker names for validation
+        existing_names = [m.name for m in track.markers]
 
-        if marker_name:
-            self._add_marker_to_track(marker_name, position_ms)
+        # Show dialog with inline validation
+        dialog = AddMarkerDialog(position_ms, existing_names, self._main_window)
+        if dialog.exec():
+            marker_name = dialog.get_marker_name()
+            timestamp_ms = dialog.get_timestamp_ms()
+            self._add_marker_to_track(marker_name, timestamp_ms)
 
     def _add_marker_to_track(self, name: str, timestamp_ms: int) -> None:
         """
         Add a marker to the current track.
 
         Args:
-            name: Marker name
+            name: Marker name (already validated as unique by dialog)
             timestamp_ms: Timestamp in milliseconds
         """
         if self._current_show is None or self._current_track_index < 0:
@@ -556,17 +560,7 @@ class AppController:
             return
 
         try:
-            # Check for duplicate name
-            for marker in track.markers:
-                if marker.name == name:
-                    show_error(
-                        self._main_window,
-                        "Duplicate Marker",
-                        f'Marker "{name}" already exists in this track.',
-                    )
-                    return
-
-            # Create and add marker
+            # Create and add marker (validation already done by dialog)
             marker = Marker(name=name, timestamp_ms=timestamp_ms)
             track.add_marker(marker)
 

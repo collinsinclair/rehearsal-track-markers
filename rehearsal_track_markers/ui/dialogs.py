@@ -84,6 +84,148 @@ class NewShowDialog(QDialog):
         super().accept()
 
 
+class AddMarkerDialog(QDialog):
+    """
+    Dialog for adding a new marker with inline validation.
+
+    Shows validation errors inline and keeps the dialog open until
+    a valid, unique name is entered or the user cancels.
+    """
+
+    def __init__(
+        self, timestamp_ms: int, existing_names: list[str], parent=None
+    ) -> None:
+        """
+        Initialize the add marker dialog.
+
+        Args:
+            timestamp_ms: Timestamp for the marker in milliseconds
+            existing_names: List of existing marker names (for duplicate checking)
+            parent: Optional parent widget
+        """
+        super().__init__(parent)
+
+        self.setWindowTitle("Add Marker")
+        self.setModal(True)
+        self.setMinimumWidth(400)
+
+        self._timestamp_ms = timestamp_ms
+        self._existing_names = [name.lower() for name in existing_names]
+
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+        """Set up the user interface."""
+        layout = QVBoxLayout(self)
+
+        # Form layout
+        form_layout = QFormLayout()
+
+        # Timestamp display (read-only)
+        time_str = self._format_timestamp(self._timestamp_ms)
+        timestamp_label = QLineEdit(time_str)
+        timestamp_label.setReadOnly(True)
+        timestamp_label.setStyleSheet("color: gray;")
+        form_layout.addRow("Position:", timestamp_label)
+
+        # Marker name input
+        self._name_input = QLineEdit()
+        self._name_input.setPlaceholderText("e.g., Measure 42, Reh A, Dorothy enters")
+        self._name_input.textChanged.connect(self._on_text_changed)
+        form_layout.addRow("Marker Name:", self._name_input)
+
+        layout.addLayout(form_layout)
+
+        # Error message label (initially hidden)
+        self._error_label = QLineEdit()
+        self._error_label.setReadOnly(True)
+        self._error_label.setStyleSheet(
+            "color: red; background: transparent; border: none;"
+        )
+        self._error_label.setVisible(False)
+        layout.addWidget(self._error_label)
+
+        # Buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Set focus to name input
+        self._name_input.setFocus()
+
+    def _format_timestamp(self, milliseconds: int) -> str:
+        """
+        Format timestamp in M:SS.mmm format.
+
+        Args:
+            milliseconds: Time in milliseconds
+
+        Returns:
+            Formatted time string
+        """
+        total_seconds = milliseconds / 1000
+        minutes = int(total_seconds // 60)
+        seconds = total_seconds % 60
+        return f"{minutes}:{seconds:06.3f}"
+
+    def _on_text_changed(self) -> None:
+        """Handle text changes to clear error message."""
+        self._error_label.setVisible(False)
+
+    def get_marker_name(self) -> str:
+        """
+        Get the entered marker name.
+
+        Returns:
+            The marker name entered by the user
+        """
+        return self._name_input.text().strip()
+
+    def get_timestamp_ms(self) -> int:
+        """
+        Get the marker timestamp.
+
+        Returns:
+            The timestamp in milliseconds
+        """
+        return self._timestamp_ms
+
+    def _show_error(self, message: str) -> None:
+        """
+        Show an error message inline.
+
+        Args:
+            message: Error message to display
+        """
+        self._error_label.setText(message)
+        self._error_label.setVisible(True)
+
+    def accept(self) -> None:
+        """Accept the dialog if validation passes."""
+        name = self.get_marker_name()
+
+        # Validate non-empty
+        if not name:
+            self._show_error("Please enter a marker name.")
+            self._name_input.setFocus()
+            return
+
+        # Validate uniqueness (case-insensitive)
+        if name.lower() in self._existing_names:
+            self._show_error(
+                f'Marker "{name}" already exists. Please choose a different name.'
+            )
+            self._name_input.selectAll()
+            self._name_input.setFocus()
+            return
+
+        # Validation passed
+        super().accept()
+
+
 class EditMarkerDialog(QDialog):
     """
     Dialog for editing a marker name.
