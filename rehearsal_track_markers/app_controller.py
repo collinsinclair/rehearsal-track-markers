@@ -155,8 +155,13 @@ class AppController:
             # Create new show
             self._current_show = Show(name=show_name)
             self._current_track_index = -1
-            self._show_file_path = None
             self._is_modified = True
+
+            # Create show directories
+            self._file_manager.create_show_directories(show_name)
+
+            # Set the file path to where it will be saved
+            self._show_file_path = self._file_manager.get_show_file_path(show_name)
 
             # Update UI
             self._update_ui_for_show()
@@ -196,36 +201,35 @@ class AppController:
             logger.warning("No show to save")
             return
 
-        if self._show_file_path is None:
-            # No file path yet, use Save As
-            self._on_save_show_as()
-        else:
-            # Save to existing path
-            self._save_show(self._show_file_path)
+        # Always save to proper app storage location
+        self._save_show()
 
     def _on_save_show_as(self) -> None:
-        """Handle Save Show As menu action."""
+        """Handle Save Show As menu action (rename show)."""
         if self._current_show is None:
             logger.warning("No show to save")
             return
 
-        # Show file dialog
-        shows_dir = self._file_manager.get_shows_directory()
-        shows_dir.mkdir(parents=True, exist_ok=True)
+        # For "Save As", we need to create a new show with a different name
+        # This is essentially renaming the show
+        from .ui.dialogs import get_text_input
 
-        # Suggest filename based on show name
-        suggested_name = self._current_show.name.replace(" ", "_") + ".json"
-        suggested_path = shows_dir / suggested_name
-
-        file_path, _ = QFileDialog.getSaveFileName(
+        new_name = get_text_input(
             self._main_window,
             "Save Show As",
-            str(suggested_path),
-            "Show Files (*.json);;All Files (*)",
+            "Enter new show name:",
+            default_text=self._current_show.name,
         )
 
-        if file_path:
-            self._save_show(Path(file_path))
+        if new_name and new_name != self._current_show.name:
+            # Rename the show
+            old_name = self._current_show.name
+            self._current_show.name = new_name
+
+            # Save with new name
+            self._save_show()
+
+            logger.info(f"Show renamed from '{old_name}' to '{new_name}'")
 
     def _on_export_show(self) -> None:
         """Handle Export Show menu action."""
@@ -425,15 +429,24 @@ class AppController:
 
     def _load_show(self, file_path: Path) -> None:
         """
-        Load a show from a file.
+        Load a show from app storage.
 
         Args:
-            file_path: Path to the show JSON file
+            file_path: Path to the show JSON file in app storage
+
+        Note:
+            This is for loading shows from the app's storage directory.
+            For importing external shows, use _import_show() instead.
         """
         try:
             logger.info(f"Loading show from: {file_path}")
-            # Import show from the file path
-            show = self._show_repository.import_show(file_path)
+
+            # Extract show name from file path (parent directory name)
+            # File structure: ~/AppData/shows/[show-name]/[show-name].json
+            show_name = file_path.parent.name
+
+            # Load show from app storage using the proper method
+            show = self._show_repository.load(show_name)
 
             self._current_show = show
             self._show_file_path = file_path
@@ -459,22 +472,25 @@ class AppController:
                 f"Failed to load show: {e}",
             )
 
-    def _save_show(self, file_path: Path) -> None:
+    def _save_show(self) -> None:
         """
-        Save the current show to a file.
+        Save the current show to app storage.
 
-        Args:
-            file_path: Path to save the show JSON file
+        Uses the proper app directory structure via ShowRepository.save().
         """
         if self._current_show is None:
             return
 
         try:
-            logger.info(f"Saving show to: {file_path}")
-            # Export show to the file path
-            self._show_repository.export_show(self._current_show, file_path)
+            logger.info(f"Saving show: {self._current_show.name}")
 
-            self._show_file_path = file_path
+            # Save using the proper repository method (handles paths internally)
+            self._show_repository.save(self._current_show)
+
+            # Update our tracked path to the correct location
+            self._show_file_path = self._file_manager.get_show_file_path(
+                self._current_show.name
+            )
             self._is_modified = False
 
             # Update window title
@@ -1068,19 +1084,14 @@ class AppController:
         # Only auto-save if:
         # 1. There's a current show
         # 2. The show has been modified
-        # 3. We have a save path (show has been saved at least once)
-        if (
-            self._current_show is None
-            or not self._is_modified
-            or self._show_file_path is None
-        ):
+        if self._current_show is None or not self._is_modified:
             return
 
         try:
             logger.info("Auto-saving show...")
 
-            # Save the show
-            self._show_repository.export_show(self._current_show, self._show_file_path)
+            # Save the show using proper method
+            self._show_repository.save(self._current_show)
 
             # Update state
             self._is_modified = False
