@@ -15,6 +15,7 @@ files = [
     "rehearsal_track_markers/persistence/show_repository.py",
     "rehearsal_track_markers/audio/__init__.py",
     "rehearsal_track_markers/audio/audio_file_manager.py",
+    "rehearsal_track_markers/audio/audio_player.py",
     "rehearsal_track_markers/utils/__init__.py",
     "rehearsal_track_markers/utils/logging_config.py",
     "tests/__init__.py",

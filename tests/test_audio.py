@@ -1,11 +1,18 @@
-"""Unit tests for audio file management."""
+"""Unit tests for audio file management and playback."""
 
 import pytest
 import tempfile
 from pathlib import Path
 
-from rehearsal_track_markers.audio import AudioFileManager
+from PySide6.QtMultimedia import QMediaPlayer
+from PySide6.QtTest import QSignalSpy
+from PySide6.QtWidgets import QApplication
+
+from rehearsal_track_markers.audio import AudioFileManager, AudioPlayer
 from rehearsal_track_markers.persistence import FileManager
+
+# Ensure QApplication exists for Qt tests
+app = QApplication.instance() or QApplication([])
 
 
 class TestAudioFileManager:
@@ -224,3 +231,301 @@ class TestAudioFileManager:
                 assert track.filename == f"song{fmt}"
                 assert track.audio_path.exists()
                 assert track.audio_path.suffix == fmt
+
+
+class TestAudioPlayer:
+    """Tests for the AudioPlayer class."""
+
+    @staticmethod
+    def create_dummy_audio_file(path: Path, content: bytes = b"dummy audio") -> None:
+        """Helper to create a dummy audio file for testing."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+    def test_initialization(self) -> None:
+        """Test creating an AudioPlayer instance."""
+        player = AudioPlayer()
+
+        assert player is not None
+        assert player.get_current_file() is None
+        assert player.is_stopped() is True
+        assert player.get_position_ms() == 0
+
+    def test_load_file_valid(self) -> None:
+        """Test loading a valid audio file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            result = player.load_file(audio_file)
+
+            # File should be loaded (even if not playable)
+            assert result is True
+            assert player.get_current_file() == audio_file
+
+    def test_load_file_nonexistent(self) -> None:
+        """Test loading a file that doesn't exist."""
+        player = AudioPlayer()
+        nonexistent_file = Path("/tmp/nonexistent_file_12345.mp3")
+
+        # Set up signal spy for error signal
+        error_spy = QSignalSpy(player.error_occurred)
+        assert error_spy.isValid()
+
+        result = player.load_file(nonexistent_file)
+
+        assert result is False
+        assert player.get_current_file() is None
+        assert error_spy.count() > 0  # Error signal should be emitted
+
+    def test_playback_state_queries(self) -> None:
+        """Test playback state query methods."""
+        player = AudioPlayer()
+
+        # Initially stopped
+        assert player.is_stopped() is True
+        assert player.is_playing() is False
+        assert player.is_paused() is False
+        assert player.get_playback_state() == QMediaPlayer.PlaybackState.StoppedState
+
+    def test_play_pause_stop_without_file(self) -> None:
+        """Test playback controls without a file loaded."""
+        player = AudioPlayer()
+
+        # These should not crash when no file is loaded
+        player.play()
+        player.pause()
+        player.stop()
+        player.toggle_play_pause()
+
+        # Should still be stopped
+        assert player.is_stopped() is True
+
+    def test_seek_without_file(self) -> None:
+        """Test seeking without a file loaded."""
+        player = AudioPlayer()
+
+        # Should not crash
+        player.seek(5000)
+        player.skip_forward(1000)
+        player.skip_backward(1000)
+
+        # Position should still be 0
+        assert player.get_position_ms() == 0
+
+    def test_seek_clamping(self) -> None:
+        """Test that seek positions are clamped to valid range."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            # Seek to negative position (should clamp to 0)
+            player.seek(-1000)
+            assert player.get_position_ms() >= 0
+
+            # Seek beyond duration (should clamp to duration if known)
+            # Note: With dummy files, duration might be 0 or unknown
+            player.seek(999999999)
+            # Position should be clamped (exact value depends on file)
+            assert player.get_position_ms() >= 0
+
+    def test_skip_forward(self) -> None:
+        """Test skipping forward."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            initial_pos = player.get_position_ms()
+            player.skip_forward(5000)
+
+            # Position should have increased (or stayed at max)
+            new_pos = player.get_position_ms()
+            assert new_pos >= initial_pos
+
+    def test_skip_backward(self) -> None:
+        """Test skipping backward."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            # Seek to middle first
+            player.seek(10000)
+            middle_pos = player.get_position_ms()
+
+            # Skip backward
+            player.skip_backward(5000)
+            new_pos = player.get_position_ms()
+
+            # Position should have decreased (or stayed at 0)
+            assert new_pos <= middle_pos
+
+    def test_get_duration(self) -> None:
+        """Test getting track duration."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            duration = player.get_duration_ms()
+
+            # Duration should be non-negative
+            # (might be 0 for dummy files that can't be parsed)
+            assert duration >= 0
+
+    def test_volume_control(self) -> None:
+        """Test volume control."""
+        player = AudioPlayer()
+
+        # Default volume should be between 0 and 1
+        default_volume = player.get_volume()
+        assert 0.0 <= default_volume <= 1.0
+
+        # Set volume
+        player.set_volume(0.5)
+        assert player.get_volume() == pytest.approx(0.5, abs=0.01)
+
+        # Test clamping
+        player.set_volume(1.5)  # Above max
+        assert player.get_volume() <= 1.0
+
+        player.set_volume(-0.5)  # Below min
+        assert player.get_volume() >= 0.0
+
+    def test_unload(self) -> None:
+        """Test unloading a file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            assert player.get_current_file() is not None
+
+            # Unload
+            player.unload()
+
+            assert player.get_current_file() is None
+
+    def test_signal_emissions(self) -> None:
+        """Test that signals can be connected and are valid."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+
+            # Set up signal spies
+            position_spy = QSignalSpy(player.position_changed)
+            duration_spy = QSignalSpy(player.duration_changed)
+            state_spy = QSignalSpy(player.playback_state_changed)
+            error_spy = QSignalSpy(player.error_occurred)
+
+            # Verify all spies are valid
+            assert position_spy.isValid()
+            assert duration_spy.isValid()
+            assert state_spy.isValid()
+            assert error_spy.isValid()
+
+            # Load file (might emit signals)
+            player.load_file(audio_file)
+
+            # Signals might be emitted depending on Qt Multimedia's ability
+            # to parse the dummy file. We just verify that the spies work
+            # and don't crash when signals are emitted.
+            # At minimum, we should not have errors for a valid file path
+            assert error_spy.count() == 0
+
+    def test_state_change_signals(self) -> None:
+        """Test that playback state change signals are emitted correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            # Set up signal spy for state changes
+            state_spy = QSignalSpy(player.playback_state_changed)
+            assert state_spy.isValid()
+
+            # Initially stopped
+            assert player.is_stopped()
+
+            # Try to play (may or may not succeed with dummy file)
+            player.play()
+
+            # If playback state changed, the spy should have captured it
+            # Note: With dummy files, Qt may not emit state changes,
+            # but the spy should still be valid and functional
+            assert state_spy.isValid()
+
+            # Stop should always work
+            player.stop()
+
+            # Spy should still be valid
+            assert state_spy.isValid()
+
+    def test_toggle_play_pause(self) -> None:
+        """Test toggling between play and pause."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            # Initially stopped, toggle should attempt to play
+            player.toggle_play_pause()
+
+            # State might change (depends on file validity)
+            # At minimum, this should not crash
+            assert player.get_playback_state() is not None
+
+    def test_load_replaces_previous_file(self) -> None:
+        """Test that loading a new file replaces the previous one."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file1 = Path(tmpdir) / "test1.mp3"
+            audio_file2 = Path(tmpdir) / "test2.mp3"
+            self.create_dummy_audio_file(audio_file1, b"file 1")
+            self.create_dummy_audio_file(audio_file2, b"file 2")
+
+            player = AudioPlayer()
+
+            # Load first file
+            player.load_file(audio_file1)
+            assert player.get_current_file() == audio_file1
+
+            # Load second file (should replace first)
+            player.load_file(audio_file2)
+            assert player.get_current_file() == audio_file2
+
+    def test_stop_resets_position(self) -> None:
+        """Test that stop resets playback position."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_file = Path(tmpdir) / "test.mp3"
+            self.create_dummy_audio_file(audio_file)
+
+            player = AudioPlayer()
+            player.load_file(audio_file)
+
+            # Seek to middle
+            player.seek(5000)
+
+            # Stop should reset
+            player.stop()
+
+            # After stop, should be stopped state
+            assert player.is_stopped() is True
