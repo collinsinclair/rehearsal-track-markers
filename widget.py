@@ -4,6 +4,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication
 
+from rehearsal_track_markers.app_controller import AppController
 from rehearsal_track_markers.ui import MainWindow
 
 
@@ -16,8 +17,14 @@ def main() -> int:
     """
     app = QApplication(sys.argv)
 
-    # Create and show main window
+    # Create main window
     window = MainWindow()
+
+    # Create application controller (coordinates everything)
+    # Keep reference to prevent garbage collection
+    _ = AppController(window)
+
+    # Show window
     window.show()
 
     # Run application event loop

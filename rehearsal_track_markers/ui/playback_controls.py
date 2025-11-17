@@ -5,11 +5,11 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
+from .marker_progress_bar import MarkerProgressBar
 from ..utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -80,8 +80,8 @@ class PlaybackControls(QWidget):
 
         layout.addLayout(button_layout)
 
-        # Progress bar
-        self._progress_slider = QSlider(Qt.Orientation.Horizontal)
+        # Progress bar with marker visualization
+        self._progress_slider = MarkerProgressBar(Qt.Orientation.Horizontal)
         self._progress_slider.setRange(0, 1000)  # Will be updated based on duration
         self._progress_slider.setValue(0)
         layout.addWidget(self._progress_slider)
@@ -159,6 +159,19 @@ class PlaybackControls(QWidget):
         """
         self._skip_back_button.setText(f"<<{seconds}s")
         self._skip_forward_button.setText(f"{seconds}s>>")
+
+    def set_markers(self, marker_positions: list[int]) -> None:
+        """
+        Set marker positions to display on the progress bar.
+
+        Args:
+            marker_positions: List of marker timestamps in milliseconds
+        """
+        self._progress_slider.set_markers(marker_positions)
+
+    def clear_markers(self) -> None:
+        """Clear all markers from the progress bar."""
+        self._progress_slider.clear_markers()
 
     def _update_time_display(self, current_ms: int, total_ms: int) -> None:
         """
