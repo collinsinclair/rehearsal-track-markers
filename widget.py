@@ -20,9 +20,9 @@ def main() -> int:
     # Create main window
     window = MainWindow()
 
-    # Create application controller (coordinates everything)
-    # Keep reference to prevent garbage collection
-    _ = AppController(window)
+    # Create and attach application controller to window
+    # Window owns the controller to ensure it persists for the application lifetime
+    window.controller = AppController(window)
 
     # Show window
     window.show()

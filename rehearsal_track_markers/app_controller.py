@@ -53,8 +53,8 @@ class AppController:
         self._audio_player = AudioPlayer()
 
         # Setup auto-save debounce timer
-        # Instead of saving every 2 minutes, save 500ms after any change
-        # This makes auto-save feel instant while preventing excessive saves
+        # Debounced auto-save triggers 500ms after any change
+        # This makes saves feel instant while preventing excessive writes during rapid edits
         self._auto_save_timer = QTimer()
         self._auto_save_timer.timeout.connect(self._on_auto_save)
         self._auto_save_timer.setSingleShot(True)  # Only fire once per start
@@ -959,10 +959,6 @@ class AppController:
                 self._main_window.marker_list.update_marker(
                     index, new_name, marker.timestamp_ms
                 )
-
-                # Update marker visualization (positions haven't changed, but refresh)
-                marker_positions = [m.timestamp_ms for m in track.markers]
-                self._main_window.playback_controls.set_markers(marker_positions)
 
                 # Trigger auto-save
                 self._trigger_auto_save()

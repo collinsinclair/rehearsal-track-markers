@@ -188,8 +188,8 @@ class ShowRepository:
         if audio_source_dir is None:
             audio_source_dir = import_path.parent / "audio"
 
-        # Create Show instance
-        # Note: Audio paths will need to be updated when files are copied
+        # Create Show instance with audio paths pointing to source directory
+        # Caller is responsible for copying files and updating paths to app storage
         show = Show.from_dict(show_data, audio_source_dir)
 
         logger.info(f"Imported show: {show.name} with {len(show.tracks)} tracks")
